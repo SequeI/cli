@@ -432,18 +432,23 @@ func checkOpts(ctx context.Context, p *policy) (*cosign.CheckOpts, error) {
 			} else {
 				log.Debugf("Could not fetch trusted_root.json from TUF, falling back to individual targets: %v", trErr)
 			}
+		} else {
+			log.Debug("Sigstore env overrides detected, skipping trusted root from TUF")
 		}
 
 		if opts.TrustedMaterial == nil {
 			if opts.RootCerts, err = fulcio.GetRoots(); err != nil {
 				return nil, err
 			}
+			log.Debug("Fetched Fulcio root certificates")
 			if opts.IntermediateCerts, err = fulcio.GetIntermediates(); err != nil {
 				return nil, err
 			}
+			log.Debug("Fetched Fulcio intermediate certificates")
 			if opts.CTLogPubKeys, err = cosign.GetCTLogPubs(ctx); err != nil {
 				return nil, err
 			}
+			log.Debug("Fetched CT log public keys")
 		}
 	}
 
@@ -473,12 +478,16 @@ func checkOpts(ctx context.Context, p *policy) (*cosign.CheckOpts, error) {
 			if opts.RekorPubKeys, err = cosign.GetRekorPubs(ctx); err != nil {
 				return nil, err
 			}
+			log.Debug("Fetched Rekor public keys")
 		}
 	}
 
 	return &opts, nil
 }
 
+// hasSigstoreEnvOverrides returns true if any SIGSTORE_* environment variables
+// are set. When present, these take precedence over trusted_root.json and the
+// legacy per-component TUF target loading is used instead.
 func hasSigstoreEnvOverrides() bool {
 	return os.Getenv("SIGSTORE_ROOT_FILE") != "" ||
 		os.Getenv("SIGSTORE_CT_LOG_PUBLIC_KEY_FILE") != "" ||

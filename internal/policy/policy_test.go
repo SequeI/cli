@@ -456,6 +456,60 @@ func TestCheckOpts(t *testing.T) {
 	}
 }
 
+var sigstoreEnvVars = []string{
+	"SIGSTORE_ROOT_FILE",
+	"SIGSTORE_CT_LOG_PUBLIC_KEY_FILE",
+	"SIGSTORE_REKOR_PUBLIC_KEY",
+	"SIGSTORE_TSA_CERTIFICATE_FILE",
+}
+
+func clearSigstoreEnvVars(t *testing.T) {
+	t.Helper()
+	for _, v := range sigstoreEnvVars {
+		t.Setenv(v, "")
+	}
+}
+
+func TestHasSigstoreEnvOverrides(t *testing.T) {
+	t.Run("no overrides", func(t *testing.T) {
+		clearSigstoreEnvVars(t)
+		assert.False(t, hasSigstoreEnvOverrides())
+	})
+
+	for _, v := range sigstoreEnvVars {
+		t.Run(v, func(t *testing.T) {
+			clearSigstoreEnvVars(t)
+			t.Setenv(v, "/some/path")
+			assert.True(t, hasSigstoreEnvOverrides())
+		})
+	}
+}
+
+func TestCheckOptsTrustedRootPath(t *testing.T) {
+	clearSigstoreEnvVars(t)
+
+	p, err := NewPolicy(context.Background(), Options{
+		EffectiveTime: Now,
+		IgnoreRekor:   true,
+		Identity: cosign.Identity{
+			Issuer:  "my-issuer",
+			Subject: "my-subject",
+		},
+	})
+	assert.NoError(t, err)
+
+	opts, err := p.CheckOpts()
+	assert.NoError(t, err)
+
+	if opts.TrustedMaterial != nil {
+		assert.Nil(t, opts.RootCerts)
+		assert.Nil(t, opts.CTLogPubKeys)
+	} else {
+		assert.NotNil(t, opts.RootCerts)
+		assert.NotNil(t, opts.CTLogPubKeys)
+	}
+}
+
 func TestPublicKeyPEM(t *testing.T) {
 	cases := []struct {
 		name              string
